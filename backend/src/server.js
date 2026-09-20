@@ -14,18 +14,37 @@ dotenv.config({ path: path.resolve(__dirname, "../.env"), override: false });
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
-const frontendOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+
+function normalizeOrigin(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/$/, "");
+  }
+}
+
+const configuredOrigins = String(process.env.FRONTEND_ORIGINS || "")
+  .split(",")
+  .map(normalizeOrigin)
+  .filter(Boolean);
+
 const allowedOrigins = new Set([
-  frontendOrigin,
+  normalizeOrigin(process.env.FRONTEND_ORIGIN || "http://localhost:5173"),
+  ...configuredOrigins,
   "http://localhost:5173",
-  "http://127.0.0.1:5173"
-]);
+  "http://127.0.0.1:5173",
+  "https://sathinmanitha.github.io"
+].filter(Boolean));
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-    return callback(null, false);
-  }
+    if (!origin || allowedOrigins.has(normalizeOrigin(origin))) return callback(null, true);
+    return callback(new Error(`CORS blocked request from ${origin}`));
+  },
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"]
 }));
 app.use(express.json({ limit: "2mb" }));
 

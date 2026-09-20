@@ -113,6 +113,29 @@ function isSimpleAcknowledgement(text) {
   return acknowledgementWords.has(clean);
 }
 
+function loadStoredHistory() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("onix-history") || "[]");
+    return Array.isArray(saved) ? saved : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadStoredFeedback() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("onix-latest-feedback") || "null");
+    return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function createHistoryId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `onix-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 function ThemeToggle({ theme, onToggle, compact = false }) {
   const dark = theme === "dark";
   return (
@@ -226,7 +249,7 @@ function SettingsModal({ settings, setSettings, theme, setTheme, sessionActive, 
       <div className="settings-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div className="settings-title-with-logo">
-            src={assetUrl("logo2.png")}
+            <img src={assetUrl("logo2.png")} alt="" aria-hidden="true" />
             <div>
               <span className="eyebrow">One place for all preferences</span>
               <h2>OniX settings</h2>
@@ -358,7 +381,7 @@ function FeedbackView({ feedback, combinedScore, onReset }) {
   );
 }
 
-function CorrectionView({ feedback, analysisBusy }) {
+function CorrectionView({ feedback, analysisBusy, userCaption }) {
   return (
     <section className="content-view correction-view enter-view">
       <div className="correction-page-card glass-card">
@@ -369,6 +392,13 @@ function CorrectionView({ feedback, analysisBusy }) {
           </div>
           {analysisBusy && <span className="analyzing"><i /> Analyzing…</span>}
         </div>
+
+        {userCaption && (
+          <div className="heard-box">
+            <span><Mic size={14} /> You said</span>
+            <p>{userCaption}</p>
+          </div>
+        )}
 
         {!feedback ? (
           <div className="empty-feedback large-empty">
@@ -424,7 +454,7 @@ function App() {
   const [coachSpeaking, setCoachSpeaking] = useState(false);
   const [coachCaption, setCoachCaption] = useState("Hi, I’m OniX, your English coach. Start a conversation when you’re ready.");
   const [userCaption, setUserCaption] = useState("");
-  const [feedback, setFeedback] = useState(null);
+  const [feedback, setFeedback] = useState(loadStoredFeedback);
   const [apiHealth, setApiHealth] = useState(null);
   const [notice, setNotice] = useState("");
   const [analysisBusy, setAnalysisBusy] = useState(false);
@@ -432,13 +462,7 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pseudoFullscreen, setPseudoFullscreen] = useState(false);
   const [transcriptionMode, setTranscriptionMode] = useState("starting");
-  const [history, setHistory] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("onix-history") || "[]");
-    } catch {
-      return [];
-    }
-  });
+  const [history, setHistory] = useState(loadStoredHistory);
 
   const liveRef = useRef(null);
   const coachPanelRef = useRef(null);
@@ -464,7 +488,8 @@ function App() {
     const loadHealth = async () => {
       try {
         const response = await fetch(apiUrl("/api/health"), { cache: "no-store" });
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.message || "Backend health check failed.");
         if (!cancelled) setApiHealth(data);
       } catch {
         if (!cancelled) setApiHealth({ ok: false, geminiConfigured: false, backendOffline: true });
@@ -479,8 +504,14 @@ function App() {
   }, [settings]);
 
   useEffect(() => {
-    localStorage.setItem("onix-history", JSON.stringify(history.slice(0, 40)));
+    const safeHistory = Array.isArray(history) ? history.slice(0, 40) : [];
+    localStorage.setItem("onix-history", JSON.stringify(safeHistory));
   }, [history]);
+
+  useEffect(() => {
+    if (feedback) localStorage.setItem("onix-latest-feedback", JSON.stringify(feedback));
+    else localStorage.removeItem("onix-latest-feedback");
+  }, [feedback]);
 
   useEffect(() => {
     if (sessionState !== "connected") return;
@@ -553,13 +584,14 @@ function App() {
       setFeedback(data);
       setHistory((items) => [
         {
-          id: crypto.randomUUID(),
+          id: createHistoryId(),
           at: new Date().toISOString(),
           text: clean,
           corrected: data.correctedSentence,
-          score: data.overallScore
+          score: data.overallScore,
+          feedback: data
         },
-        ...items
+        ...(Array.isArray(items) ? items : [])
       ].slice(0, 40));
     } catch (err) {
       showNotice(friendlyServiceMessage(err, "English feedback is temporarily unavailable. Keep talking—your conversation can continue."), 5000);
@@ -758,7 +790,12 @@ function App() {
     return (
       <button
         className={`nav-item ${activeView === view ? "active" : ""}`}
-        onClick={() => setActiveView(view)}
+        onClick={() => {
+          setShowHistory(false);
+          setShowSettings(false);
+          setActiveView(view);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
         type="button"
       >
         <Icon size={19} /> <span>{label}</span>
@@ -780,7 +817,7 @@ function App() {
           {navButton("coach", "Live Coach", Sparkles)}
           {navButton("feedback", "Live Feedback", Activity)}
           {navButton("correction", "Instant Correction", WandSparkles)}
-          <button className="nav-item" onClick={() => setShowHistory(true)} type="button"><History size={19} /><span>Practice History</span></button>
+          <button className={`nav-item ${showHistory ? "active" : ""}`} onClick={() => { setShowSettings(false); setShowHistory(true); }} type="button"><History size={19} /><span>Practice History</span></button>
           <button className="nav-item settings-nav" onClick={() => setShowSettings(true)} type="button"><Settings size={19} /><span>Settings</span></button>
         </nav>
 
@@ -796,7 +833,7 @@ function App() {
           <span className={`service-dot ${apiHealth?.geminiConfigured ? "online" : ""}`} />
           <div>
             <strong>OniX Speech AI</strong>
-            <small>{apiHealth?.geminiConfigured ? "Voice coaching ready" : "API key required"}</small>
+            <small>{apiHealth?.backendOffline ? "Backend connection unavailable" : apiHealth?.geminiConfigured ? "Voice coaching ready" : "API key required"}</small>
           </div>
         </div>
       </aside>
@@ -870,7 +907,7 @@ function App() {
         )}
 
         {activeView === "feedback" && <FeedbackView feedback={feedback} combinedScore={combinedScore} onReset={resetFeedback} />}
-        {activeView === "correction" && <CorrectionView feedback={feedback} analysisBusy={analysisBusy} />}
+        {activeView === "correction" && <CorrectionView feedback={feedback} analysisBusy={analysisBusy} userCaption={userCaption} />}
       </main>
 
       {showSettings && (
@@ -892,20 +929,26 @@ function App() {
               <button className="icon-btn" onClick={() => setShowHistory(false)}><X size={20} /></button>
             </div>
             <div className="history-list">
-              {history.length === 0 ? (
-                <div className="empty-history">Your analysed speaking turns will appear here.</div>
+              {!Array.isArray(history) || history.length === 0 ? (
+                <div className="empty-history">No analysed turns yet. Start a conversation and speak a complete English sentence. Your feedback and corrections will be saved here automatically.</div>
               ) : history.map((item) => (
-                <div className="history-item" key={item.id}>
-                  <div className="history-score">{item.score}</div>
+                <div className="history-item" key={item.id || `${item.at}-${item.text}`}>
+                  <div className="history-score">{Number(item.score) || "–"}</div>
                   <div className="history-copy">
-                    <span>{new Date(item.at).toLocaleString()}</span>
-                    <p>“{item.text}”</p>
+                    <span>{item.at ? new Date(item.at).toLocaleString() : "Previous practice"}</span>
+                    <p>“{item.text || ""}”</p>
                     {item.corrected && item.corrected !== item.text && <small>Corrected: {item.corrected}</small>}
+                    {item.feedback && (
+                      <div className="history-actions">
+                        <button type="button" onClick={() => { setFeedback(item.feedback); setUserCaption(item.text || ""); setShowHistory(false); setActiveView("feedback"); }}>View feedback</button>
+                        <button type="button" onClick={() => { setFeedback(item.feedback); setUserCaption(item.text || ""); setShowHistory(false); setActiveView("correction"); }}>View correction</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-            {history.length > 0 && <button className="secondary-btn full" onClick={() => setHistory([])}>Clear history</button>}
+            {Array.isArray(history) && history.length > 0 && <button className="secondary-btn full" onClick={() => setHistory([])}>Clear history</button>}
           </div>
         </div>
       )}

@@ -129,3 +129,17 @@ Only `VITE_` variables are exposed to frontend code. Never rename `GEMINI_API_KE
 - The coach SVG has a more natural human-like face, darker hair, subtler eyes and facial shading while preserving live blinking and mouth movement.
 - Logo container background is transparent in light mode.
 - Responsive text sizes were increased across desktop, tablet and mobile layouts.
+
+## GitHub Pages deployment note
+
+GitHub Pages hosts only the React frontend. The Express backend must still be deployed on a server/service because it protects the permanent Gemini API key and provides `/api/session/token` and `/api/analyze`.
+
+This project allows requests from the production GitHub Pages origin `https://sathinmanitha.github.io` by default. If you deploy the frontend on another domain, add that origin to `FRONTEND_ORIGINS` (comma-separated) or `FRONTEND_ORIGIN` in the backend environment.
+
+The Pages workflow currently builds the frontend with:
+
+```text
+VITE_API_BASE_URL=https://onix-ai-backend.onrender.com
+```
+
+If your backend uses a different URL, update `.github/workflows/deploy.yml` before redeploying the frontend. Do not put `GEMINI_API_KEY` into any `VITE_` variable or frontend file.

@@ -842,7 +842,21 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .history-copy span { color: var(--muted-2); font-size: 8px; }
 .history-copy p { margin: 3px 0; color: var(--text-strong); font-size: 10px; }
 .history-copy small { color: var(--green); font-size: 9px; }
-.empty-history { min-height: 150px; display: grid; place-items: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; font-size: 10px; }
+.history-actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.history-actions button {
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--purple);
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: .2s ease;
+}
+.history-actions button:hover { transform: translateY(-1px); border-color: var(--line-strong); }
+.empty-history { min-height: 150px; padding: 18px; display: grid; place-items: center; text-align: center; line-height: 1.55; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; font-size: 10px; }
 
 /* True browser fullscreen + fallback fullscreen */
 .coach-panel:fullscreen,
