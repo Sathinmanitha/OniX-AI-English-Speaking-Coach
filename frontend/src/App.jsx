@@ -824,7 +824,7 @@ function App() {
             <div ref={coachPanelRef} className={`coach-panel glass-card ${pseudoFullscreen ? "pseudo-fullscreen" : ""}`}>
               <div className="coach-panel-top">
                 <div className="coach-name">
-                  <div className="coach-mini-avatar"><img src="/assets/logo2.png" alt="" aria-hidden="true" /></div>
+                  <div className="coach-mini-avatar"><img src={assetUrl("logo2.png")} alt="" aria-hidden="true" /></div>
                   <div><strong>OniX</strong><span>AI English Coach</span></div>
                 </div>
                 <div className="coach-top-actions">
