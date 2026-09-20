@@ -792,7 +792,7 @@ function App() {
         </div>
 
         <div className="sidebar-bottom">
-          <img className="sidebar-service-logo" src="/assets/logo2.png" alt="" aria-hidden="true" />
+          <img className="sidebar-service-logo" src={assetUrl("logo2.png")} alt="" aria-hidden="true" />
           <span className={`service-dot ${apiHealth?.geminiConfigured ? "online" : ""}`} />
           <div>
             <strong>OniX Speech AI</strong>
@@ -805,7 +805,7 @@ function App() {
         <header className="topbar">
           <div className="topbar-copy">
             <div className="mobile-brand-line">
-              <img src="/assets/logo2.png" alt="OniX AI" />
+              <img src={assetUrl("logo2.png")} alt="OniX AI" />
               <span>OniX AI</span>
             </div>
             <span className="eyebrow">{viewMeta.eyebrow}</span>
