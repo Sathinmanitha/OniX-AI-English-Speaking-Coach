@@ -226,7 +226,7 @@ function SettingsModal({ settings, setSettings, theme, setTheme, sessionActive, 
       <div className="settings-modal" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div className="settings-title-with-logo">
-            <img src="/assets/logo2.png" alt="" aria-hidden="true" />
+            src={assetUrl("logo2.png")}
             <div>
               <span className="eyebrow">One place for all preferences</span>
               <h2>OniX settings</h2>
@@ -773,7 +773,7 @@ function App() {
 
       <aside className="sidebar">
         <div className="brand">
-          <img className="brand-logo-full" src="/assets/logo.png" alt="OniX AI" draggable="false" />
+          <img className="brand-logo-full" src={assetUrl("logo.png")} alt="OniX AI" draggable="false" />
         </div>
 
         <nav>
@@ -852,7 +852,7 @@ function App() {
               <div className="controls-dock">
                 {sessionState !== "connected" ? (
                   <button className="start-call-btn" disabled={sessionState === "connecting"} onClick={startCoach}>
-                    <img src="/assets/start-conversation.png" alt="" aria-hidden="true" />
+                    <img src={assetUrl("start-conversation.png")} alt="" aria-hidden="true" />
                     <span>{sessionState === "connecting" ? "Connecting…" : "Start conversation"}</span>
                   </button>
                 ) : (
