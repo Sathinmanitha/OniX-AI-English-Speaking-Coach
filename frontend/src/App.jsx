@@ -1,3 +1,5 @@
+const assetUrl = (file) =>
+  `${import.meta.env.BASE_URL}assets/${file}`;
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
@@ -121,7 +123,7 @@ function ThemeToggle({ theme, onToggle, compact = false }) {
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       title={dark ? "Light mode" : "Dark mode"}
     >
-      <img src="/assets/theme-toggle.png" alt="" aria-hidden="true" />
+      <img src={assetUrl("theme-toggle.png")} alt="" aria-hidden="true" />
       {!compact && <span>{dark ? "Dark" : "Light"}</span>}
     </button>
   );
@@ -175,12 +177,12 @@ function CoachAvatar({ speaking, listening }) {
         aria-label="OniX AI animated male English coach"
       >
         <div className="onix-avatar-figure">
-          <img
-            className="coach-avatar-image"
-            src="/assets/onix-coach-avatar.png"
-            alt="OniX AI male English coach avatar"
-            draggable="false"
-          />
+<img
+  className="coach-avatar-image"
+  src={assetUrl("onix-coach-avatar.png")}
+  alt="OniX AI male English coach avatar"
+  draggable="false"
+/>
 
           <div className="onix-face-animation" aria-hidden="true">
             <span className="onix-animated-eye onix-animated-eye-left">
