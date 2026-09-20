@@ -20,7 +20,10 @@ Conversation rules:
 - Introduce yourself only once near the beginning: "Hi, I'm OniX, your English coach." Then ask one short question.
 - Respond quickly. Most replies should be 1-2 short sentences.
 - Ask natural follow-up questions so the learner speaks more than you do.
-- Use English by default and adapt vocabulary and grammar complexity to the learner's level.
+- ENGLISH ONLY: Every coach response must be in English. Never switch to Sinhala, Tamil, Hindi, Spanish, or any other language, even if the learner speaks or writes another language.
+- If the learner uses another language, politely continue in English and, when useful, ask them to try the same idea in English. Do not translate your full response into another language.
+- Keep all greetings, explanations, corrections, examples, questions, and spelling guidance in English.
+- Adapt English vocabulary and grammar complexity to the learner's level.
 - If there is a meaningful grammar, tense, article, preposition, agreement, word-choice, sentence-structure, or naturalness mistake, respond to the meaning first and then give one concise correction.
 - Do not interrupt for tiny style preferences. Do not invent mistakes.
 - If the learner says a short acknowledgement such as "no", "yes", "yeah", "okay", "right", "sure", or a single word, accept that short response and continue naturally. Never expand it into words the learner did not say.
@@ -34,7 +37,9 @@ Conversation rules:
 - Make the experience feel like a responsive human English coach, not a quiz or lecture.
 - Keep one consistent speaking identity for the whole session. Never imitate another person, switch character voices, or deliberately change vocal persona. The app-selected voice is fixed until the learner ends the session and chooses a different voice in Settings.
 
-Prioritize a fast conversational response immediately after the learner finishes speaking.`;
+Prioritize a fast conversational response immediately after the learner finishes speaking. Do not add long preambles or repeated acknowledgements.
+
+Language lock: English is the only output language for this entire session.`;
 }
 
 function floatToPcm16(float32) {
@@ -189,6 +194,7 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
   let muted = false;
   let closed = false;
   let nextPlayTime = 0;
+  let playbackStarted = false;
   let speechActive = false;
   let speechStartAt = 0;
   let silenceMs = 0;
@@ -203,12 +209,13 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
     }
     playingSources.clear();
     nextPlayTime = outputContext?.currentTime || 0;
+    playbackStarted = false;
     onState?.("listening");
   };
 
   const playPcm24k = async (base64) => {
     if (!base64 || closed) return;
-    if (!outputContext) outputContext = new AudioContext({ sampleRate: 24000 });
+    if (!outputContext) outputContext = new AudioContext({ sampleRate: 24000, latencyHint: "interactive" });
     if (outputContext.state === "suspended") await outputContext.resume();
 
     const pcm = base64ToInt16(base64);
@@ -220,12 +227,28 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
     bufferSource.buffer = audioBuffer;
     bufferSource.connect(outputContext.destination);
     const now = outputContext.currentTime;
-    const startAt = Math.max(now + 0.01, nextPlayTime);
+    // Keep a small jitter buffer at the beginning of each model utterance.
+    // After playback starts, every PCM chunk is scheduled back-to-back. This
+    // prevents the stop/start effect caused by small network delivery gaps.
+    const startupBuffer = 0.065;
+    if (!playbackStarted || nextPlayTime < now + 0.012) {
+      nextPlayTime = now + startupBuffer;
+      playbackStarted = true;
+    }
+    const startAt = nextPlayTime;
     nextPlayTime = startAt + audioBuffer.duration;
     playingSources.add(bufferSource);
     bufferSource.onended = () => {
       playingSources.delete(bufferSource);
-      if (!playingSources.size) onState?.("listening");
+      if (!playingSources.size) {
+        const remaining = Math.max(0, nextPlayTime - (outputContext?.currentTime || 0));
+        window.setTimeout(() => {
+          if (!playingSources.size && !closed) {
+            playbackStarted = false;
+            onState?.("listening");
+          }
+        }, Math.max(20, Math.ceil(remaining * 1000) + 20));
+      }
     };
     bufferSource.start(startAt);
     onState?.("coach-speaking");
@@ -326,8 +349,8 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
             disabled: false,
             startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
             endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
-            prefixPaddingMs: 80,
-            silenceDurationMs: 220
+            prefixPaddingMs: 60,
+            silenceDurationMs: 180
           }
         },
         speechConfig: {
@@ -415,8 +438,8 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
             disabled: false,
             startOfSpeechSensitivity: "START_SENSITIVITY_HIGH",
             endOfSpeechSensitivity: "END_SENSITIVITY_HIGH",
-            prefixPaddingMs: 80,
-            silenceDurationMs: 220
+            prefixPaddingMs: 60,
+            silenceDurationMs: 180
           }
         }
       }
@@ -473,7 +496,7 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
       turns: [{
         role: "user",
         parts: [{
-          text: `Begin the coaching session now. Introduce yourself only as OniX in one short sentence, then ask ${settings.learnerName || "me"} one simple question about ${settings.topic || "everyday conversation"}.`
+          text: `Start now in English only. First say exactly: "Hi, I’m OniX, your English coach. Start a conversation when you’re ready." Then immediately continue naturally with one short English question about ${settings.topic || "everyday conversation"}. Never use another language.`
         }]
       }],
       turnComplete: true
@@ -523,7 +546,7 @@ export async function createLiveCoach({ settings, onEvent, onState }) {
     else silenceMs = 0;
 
     const spokenForMs = performance.now() - speechStartAt;
-    const requiredSilenceMs = spokenForMs < 1200 ? 180 : 240;
+    const requiredSilenceMs = spokenForMs < 1200 ? 150 : 190;
     if (silenceMs >= requiredSilenceMs) endSpeechTurn();
   };
 

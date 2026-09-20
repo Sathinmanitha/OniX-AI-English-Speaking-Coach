@@ -452,7 +452,7 @@ function App() {
   const [sessionState, setSessionState] = useState("idle");
   const [muted, setMuted] = useState(false);
   const [coachSpeaking, setCoachSpeaking] = useState(false);
-  const [coachCaption, setCoachCaption] = useState("Hi, I’m OniX, your English coach. Start a conversation when you’re ready.");
+  const [coachCaption, setCoachCaption] = useState("");
   const [userCaption, setUserCaption] = useState("");
   const [feedback, setFeedback] = useState(loadStoredFeedback);
   const [apiHealth, setApiHealth] = useState(null);
@@ -705,19 +705,9 @@ function App() {
     outputEndRef.current = 0;
 
     try {
-      let health = apiHealth;
-      try {
-        const healthResponse = await fetch(apiUrl("/api/health"), { cache: "no-store" });
-        health = await healthResponse.json();
-        setApiHealth(health);
-      } catch {
-        throw new Error("OniX could not reach the local service. Please make sure the app server is running and try again.");
-      }
-
-      if (!health?.geminiConfigured) {
-        throw new Error("OniX AI is not configured yet. Check the Gemini API key and restart the app server.");
-      }
-
+      // Do not block Start conversation with another health-check round trip.
+      // The token request inside createLiveCoach is the authoritative connectivity/config check
+      // and already runs in parallel with microphone permission + SDK loading.
       const sessionSettings = {
         ...settings,
         voice: allowedVoiceValues.has(settings.voice) ? settings.voice : defaultSettings.voice
@@ -740,7 +730,7 @@ function App() {
     } catch (err) {
       const message = friendlyServiceMessage(err, "OniX could not start the conversation right now. Please try again in a moment.");
       setSessionState("idle");
-      setCoachCaption("OniX is ready. Please try starting the conversation again.");
+      setCoachCaption("");
       showNotice(message, 5500);
     }
   }
@@ -753,7 +743,7 @@ function App() {
     setSessionState("idle");
     setCoachSpeaking(false);
     setMuted(false);
-    setCoachCaption("Session ended. Review your feedback, or start another conversation when you're ready.");
+    setCoachCaption("");
   }
 
   function toggleMute() {
@@ -771,18 +761,30 @@ function App() {
     const element = coachPanelRef.current;
     if (!element) return;
 
+    // Mobile browsers (especially iOS Safari) do not consistently support
+    // element fullscreen. Use the app-level fullscreen layout there so the
+    // coach always fills the available visual viewport correctly.
+    const preferPseudoFullscreen = window.matchMedia?.("(max-width: 820px)")?.matches
+      || !element.requestFullscreen;
+
+    if (pseudoFullscreen) {
+      setPseudoFullscreen(false);
+      return;
+    }
+
+    if (preferPseudoFullscreen) {
+      setPseudoFullscreen(true);
+      return;
+    }
+
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
         return;
       }
-      if (element.requestFullscreen) {
-        await element.requestFullscreen();
-        return;
-      }
-      setPseudoFullscreen((value) => !value);
+      await element.requestFullscreen();
     } catch {
-      setPseudoFullscreen((value) => !value);
+      setPseudoFullscreen(true);
     }
   }
 
@@ -877,12 +879,14 @@ function App() {
 
               <CoachAvatar speaking={coachSpeaking} listening={listening} />
 
-              <div className="captions-zone">
-                <div className="caption-card coach-caption">
-                  <span className="speaker-label"><Volume2 size={14} /> OniX</span>
-                  <p>{coachCaption}</p>
+              {(sessionState !== "idle" || coachCaption) && (
+                <div className="captions-zone">
+                  <div className="caption-card coach-caption">
+                    <span className="speaker-label"><Volume2 size={14} /> OniX</span>
+                    <p>{coachCaption || "Hi, I’m OniX, your English coach. Start a conversation when you’re ready."}</p>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {notice && <div className="notice-banner">{notice}</div>}
 
